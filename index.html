@@ -323,6 +323,142 @@
         canvas.focus();
       });
     }
+
+    // Gamepad support
+    var gamepadIndex = null;
+    var gamepadState = {};
+
+    function setupGamepad() {
+      window.addEventListener('gamepadconnected', function(e) {
+        console.log('Gamepad connected:', e.gamepad.id);
+        gamepadIndex = e.gamepad.index;
+        requestAnimationFrame(pollGamepad);
+      });
+
+      window.addEventListener('gamepaddisconnected', function(e) {
+        console.log('Gamepad disconnected');
+        if (e.gamepad.index === gamepadIndex) {
+          gamepadIndex = null;
+        }
+      });
+
+      // Check if gamepad already connected
+      var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      for (var i = 0; i < gamepads.length; i++) {
+        if (gamepads[i]) {
+          gamepadIndex = gamepads[i].index;
+          requestAnimationFrame(pollGamepad);
+          break;
+        }
+      }
+    }
+
+    function isButtonPressed(gp, index) {
+      return gp.buttons[index] && gp.buttons[index].pressed;
+    }
+
+    function pollGamepad() {
+      if (gamepadIndex === null) return;
+
+      var gamepads = navigator.getGamepads();
+      var gp = gamepads[gamepadIndex];
+      if (!gp) {
+        requestAnimationFrame(pollGamepad);
+        return;
+      }
+
+      // Standard gamepad mapping:
+      // Axes: 0=LStickX, 1=LStickY, 2=RStickX, 3=RStickY
+      // Buttons: 0=A, 1=B, 2=X, 3=Y, 4=LB, 5=RB, 6=LT, 7=RT
+      //          8=Select, 9=Start, 10=LStick, 11=RStick
+      //          12=DPadUp, 13=DPadDown, 14=DPadLeft, 15=DPadRight
+
+      var deadzone = 0.3;
+      var axes = gp.axes;
+
+      var mapping = [
+        // D-pad and left stick for movement (W/S + arrows for menus)
+        { input: function() { return isButtonPressed(gp, 12) || axes[1] < -deadzone; }, key: 'w', keyCode: 87 },
+        { input: function() { return isButtonPressed(gp, 13) || axes[1] > deadzone; }, key: 's', keyCode: 83 },
+        { input: function() { return isButtonPressed(gp, 12) || axes[1] < -deadzone; }, key: 'ArrowUp', keyCode: 38 },
+        { input: function() { return isButtonPressed(gp, 13) || axes[1] > deadzone; }, key: 'ArrowDown', keyCode: 40 },
+        // D-pad left/right and left stick X for turning (A/D + arrows)
+        { input: function() { return isButtonPressed(gp, 14) || axes[0] < -deadzone; }, key: 'a', keyCode: 65 },
+        { input: function() { return isButtonPressed(gp, 15) || axes[0] > deadzone; }, key: 'd', keyCode: 68 },
+        { input: function() { return isButtonPressed(gp, 14) || axes[0] < -deadzone; }, key: 'ArrowLeft', keyCode: 37 },
+        { input: function() { return isButtonPressed(gp, 15) || axes[0] > deadzone; }, key: 'ArrowRight', keyCode: 39 },
+        // Right stick X for turning
+        { input: function() { return axes[2] < -deadzone; }, key: 'ArrowLeft', keyCode: 37 },
+        { input: function() { return axes[2] > deadzone; }, key: 'ArrowRight', keyCode: 39 },
+        // RT/RB for fire (mouse click)
+        { input: function() { return isButtonPressed(gp, 7) || isButtonPressed(gp, 5); }, key: 'Control', keyCode: 17, isFire: true },
+        // A/X for use (Space) + Enter for menus
+        { input: function() { return isButtonPressed(gp, 0) || isButtonPressed(gp, 2); }, key: ' ', keyCode: 32 },
+        { input: function() { return isButtonPressed(gp, 0) || isButtonPressed(gp, 2); }, key: 'Enter', keyCode: 13 },
+        // Start for Escape (menu)
+        { input: function() { return isButtonPressed(gp, 9); }, key: 'Escape', keyCode: 27 },
+        // Select for Enter (alt menu)
+        { input: function() { return isButtonPressed(gp, 8); }, key: 'Enter', keyCode: 13 },
+        // B/Y/LB/LT for weapon switching (1-4)
+        { input: function() { return isButtonPressed(gp, 4); }, key: '1', keyCode: 49 },
+        { input: function() { return isButtonPressed(gp, 6); }, key: '2', keyCode: 50 },
+        { input: function() { return isButtonPressed(gp, 1); }, key: '3', keyCode: 51 },
+        { input: function() { return isButtonPressed(gp, 3); }, key: '4', keyCode: 52 },
+      ];
+
+      mapping.forEach(function(m, i) {
+        var pressed = m.input();
+        var wasPressed = gamepadState[i];
+
+        if (pressed && !wasPressed) {
+          // For fire, send mouse click
+          if (m.isFire) {
+            canvas.dispatchEvent(new MouseEvent('mousedown', {
+              button: 0,
+              buttons: 1,
+              bubbles: true,
+              cancelable: true,
+              view: window
+            }));
+          }
+          window.dispatchEvent(new KeyboardEvent('keydown', {
+            key: m.key,
+            keyCode: m.keyCode,
+            code: m.key,
+            which: m.keyCode,
+            bubbles: true,
+            cancelable: true,
+            view: window
+          }));
+        } else if (!pressed && wasPressed) {
+          if (m.isFire) {
+            canvas.dispatchEvent(new MouseEvent('mouseup', {
+              button: 0,
+              buttons: 0,
+              bubbles: true,
+              cancelable: true,
+              view: window
+            }));
+          }
+          window.dispatchEvent(new KeyboardEvent('keyup', {
+            key: m.key,
+            keyCode: m.keyCode,
+            code: m.key,
+            which: m.keyCode,
+            bubbles: true,
+            cancelable: true,
+            view: window
+          }));
+        }
+
+        gamepadState[i] = pressed;
+      });
+
+      requestAnimationFrame(pollGamepad);
+    }
+
+    // Initialize gamepad on load
+    setupGamepad();
   </script>
   <script src="wolf3d.js"></script>
 </body>

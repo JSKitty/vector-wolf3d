@@ -19,6 +19,14 @@ Classic Wolfenstein 3D (1992) running as a WebXDC mini-app for [Vector](https://
 - Alt + Arrows: Strafe
 - Escape: Menu
 
+**Gamepad:**
+- Left Stick/D-Pad: Move/Turn
+- Right Stick: Strafe
+- RT/RB: Fire
+- A/X: Open doors/Use
+- Start: Enter/Menu
+- Select: Escape
+
 **Mouse:** Click canvas to lock pointer for mouse-look control
 
 **Mobile:** On-screen D-pad and action buttons
