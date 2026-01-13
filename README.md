@@ -13,11 +13,13 @@ Classic Wolfenstein 3D (1992) running as a WebXDC mini-app for [Vector](https://
 ## Controls
 
 **Keyboard:**
-- Arrow keys: Move/Turn
+- Arrow keys or WASD: Move/Turn
 - Ctrl: Fire
 - Space: Open doors/Use
 - Alt + Arrows: Strafe
 - Escape: Menu
+
+**Mouse:** Click canvas to lock pointer for mouse-look control
 
 **Mobile:** On-screen D-pad and action buttons
 

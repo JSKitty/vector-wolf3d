@@ -179,6 +179,54 @@
       document.getElementById('controls').classList.add('visible');
     }
 
+    // WASD to Arrow key mapping
+    var wasdMap = {
+      'KeyW': { key: 'ArrowUp', keyCode: 38 },
+      'KeyS': { key: 'ArrowDown', keyCode: 40 },
+      'KeyA': { key: 'ArrowLeft', keyCode: 37 },
+      'KeyD': { key: 'ArrowRight', keyCode: 39 }
+    };
+
+    function remapWASD(e) {
+      var mapping = wasdMap[e.code];
+      if (mapping) {
+        e.preventDefault();
+        e.stopPropagation();
+        var newEvent = new KeyboardEvent(e.type, {
+          key: mapping.key,
+          keyCode: mapping.keyCode,
+          code: mapping.key,
+          which: mapping.keyCode,
+          bubbles: true,
+          cancelable: true
+        });
+        document.getElementById('canvas').dispatchEvent(newEvent);
+        return false;
+      }
+    }
+
+    document.addEventListener('keydown', remapWASD, true);
+    document.addEventListener('keyup', remapWASD, true);
+
+    // Pointer lock for mouse control
+    var isPointerLocked = false;
+
+    function requestPointerLock() {
+      var canvas = document.getElementById('canvas');
+      canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+      if (canvas.requestPointerLock) {
+        canvas.requestPointerLock();
+      }
+    }
+
+    document.addEventListener('pointerlockchange', function() {
+      isPointerLocked = document.pointerLockElement === document.getElementById('canvas');
+    });
+
+    document.addEventListener('mozpointerlockchange', function() {
+      isPointerLocked = document.mozPointerLockElement === document.getElementById('canvas');
+    });
+
     // Emscripten Module configuration
     var statusElement = document.getElementById('status');
     var loadingElement = document.getElementById('loading');
@@ -187,10 +235,14 @@
     var Module = {
       preRun: [],
       postRun: [function() {
-        // Hide loading, setup touch controls
+        // Hide loading, setup touch controls and pointer lock
         loadingElement.classList.add('hidden');
         canvas.focus();
         setupTouchControls();
+        // Enable pointer lock on click (desktop only)
+        if (!isTouchDevice) {
+          canvas.addEventListener('click', requestPointerLock);
+        }
       }],
       print: function(text) {
         console.log(text);
