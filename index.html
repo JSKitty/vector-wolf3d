@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Wolfenstein 3D</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      touch-action: none;
+    }
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    /* Loading overlay */
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #c00;
+      font-family: monospace;
+      font-size: 18px;
+      z-index: 100;
+    }
+    #loading.hidden {
+      display: none;
+    }
+    #spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid #300;
+      border-top-color: #c00;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    /* Touch controls overlay */
+    #controls {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 20px;
+      pointer-events: none;
+      z-index: 50;
+    }
+    #controls.visible {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .control-group {
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      grid-template-rows: repeat(3, 60px);
+      gap: 5px;
+    }
+    .btn {
+      width: 60px;
+      height: 60px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(150, 0, 0, 0.4);
+      color: #fff;
+      font-size: 24px;
+      font-weight: bold;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn:active {
+      background: rgba(200, 0, 0, 0.6);
+    }
+    .btn-action {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+    .btn-wide {
+      width: 80px;
+    }
+    .dpad .empty {
+      visibility: hidden;
+    }
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .action-row {
+      display: flex;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+
+  <!-- Loading overlay -->
+  <div id="loading">
+    <div id="spinner"></div>
+    <div id="status">Loading...</div>
+  </div>
+
+  <!-- Mobile touch controls -->
+  <div id="controls">
+    <div class="control-group">
+      <div class="dpad">
+        <div class="empty"></div>
+        <button class="btn" id="btnUp">&#9650;</button>
+        <div class="empty"></div>
+        <button class="btn" id="btnLeft">&#9664;</button>
+        <div class="empty"></div>
+        <button class="btn" id="btnRight">&#9654;</button>
+        <div class="empty"></div>
+        <button class="btn" id="btnDown">&#9660;</button>
+        <div class="empty"></div>
+      </div>
+    </div>
+    <div class="control-group action-buttons">
+      <div class="action-row">
+        <button class="btn btn-action" id="btnStrafe">STRAFE</button>
+        <button class="btn btn-action" id="btnUse">USE</button>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-action" id="btnFire">FIRE</button>
+        <button class="btn btn-action btn-wide" id="btnEsc">ESC</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Debug mode: add ?debug to URL to enable eruda console
+    if (window.location.search.includes('debug')) {
+      var s = document.createElement('script');
+      s.src = './eruda.js';
+      s.onload = function() { eruda.init(); };
+      document.head.appendChild(s);
+    }
+
+    // Detect touch device and show controls
+    var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) {
+      document.getElementById('controls').classList.add('visible');
+    }
+
+    // Emscripten Module configuration
+    var statusElement = document.getElementById('status');
+    var loadingElement = document.getElementById('loading');
+    var canvas = document.getElementById('canvas');
+
+    var Module = {
+      preRun: [],
+      postRun: [function() {
+        // Hide loading, setup touch controls
+        loadingElement.classList.add('hidden');
+        canvas.focus();
+        setupTouchControls();
+      }],
+      print: function(text) {
+        console.log(text);
+      },
+      printErr: function(text) {
+        console.error(text);
+      },
+      canvas: canvas,
+      setStatus: function(text) {
+        if (text) {
+          statusElement.textContent = text;
+        } else {
+          loadingElement.classList.add('hidden');
+        }
+      },
+      totalDependencies: 0,
+      monitorRunDependencies: function(left) {
+        this.totalDependencies = Math.max(this.totalDependencies, left);
+        if (left) {
+          Module.setStatus('Loading... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')');
+        } else {
+          Module.setStatus('');
+        }
+      }
+    };
+
+    Module.setStatus('Loading...');
+
+    window.onerror = function() {
+      Module.setStatus('Error loading game');
+    };
+
+    // Touch control setup
+    function setupTouchControls() {
+      var touchButtons = [
+        ['btnUp', 'ArrowUp', 38],
+        ['btnDown', 'ArrowDown', 40],
+        ['btnLeft', 'ArrowLeft', 37],
+        ['btnRight', 'ArrowRight', 39],
+        ['btnFire', 'Control', 17],
+        ['btnUse', ' ', 32],
+        ['btnStrafe', 'Alt', 18],
+        ['btnEsc', 'Escape', 27],
+      ];
+
+      touchButtons.forEach(function(config) {
+        var id = config[0], key = config[1], keyCode = config[2];
+        var btn = document.getElementById(id);
+        if (!btn) return;
+
+        function sendKey(type) {
+          canvas.dispatchEvent(new KeyboardEvent(type, {
+            key: key,
+            keyCode: keyCode,
+            code: key,
+            which: keyCode,
+            bubbles: true,
+            cancelable: true
+          }));
+        }
+
+        btn.addEventListener('touchstart', function(e) {
+          e.preventDefault();
+          sendKey('keydown');
+        }, { passive: false });
+
+        btn.addEventListener('touchend', function(e) {
+          e.preventDefault();
+          sendKey('keyup');
+        }, { passive: false });
+
+        btn.addEventListener('touchcancel', function() {
+          sendKey('keyup');
+        });
+      });
+
+      canvas.addEventListener('click', function() {
+        canvas.focus();
+      });
+    }
+  </script>
+  <script src="wolf3d.js"></script>
+</body>
+</html>
